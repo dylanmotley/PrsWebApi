@@ -42,9 +42,29 @@ namespace PrsWebApi.Controllers
             return request;
         }
 
+        // TR4 #2
+        // GET: api/Requests/5
+        [HttpGet("lines-for-pr/{id}")]
+        public async Task<ActionResult<Request>> GetAllByRequest(int id) {
+            var request = await _context.Requests
+                                            .Include(r => r.User)
+                                            .Include(r => r.Lineitems)
+                                            .ThenInclude(rl => rl.Product)
+                                            .SingleOrDefaultAsync(r => r.Id == id);
+            if (request == null) {
+                return NotFound();
+            }
+
+            return request;
+        }
+
+        // TR9 List Request Without Reviewer Listed
+        [HttpGet("list-review/{id}")]
+        public async Task<ActionResult<IEnumerable<Request>>> GetAllRequestBut(int id) {
+            return await _context.Requests.Where(r => r.Id != id).ToListAsync();
+        }
+
         // PUT: api/Requests/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to, for
-        // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPut("{id}")]
         public async Task<IActionResult> PutRequest(int id, Request request)
         {
@@ -87,6 +107,20 @@ namespace PrsWebApi.Controllers
             return CreatedAtAction("GetRequest", new { id = request.Id }, request);
         }
 
+        // POST: api/Requests
+        // TR8 Set Status to Review or Approved
+        [HttpPost("submit-review")]
+        public async Task<ActionResult<Request>> UpdateRequestToReview(Request request) {
+            if(request.Total <= 50) {
+            request.Status = "Approved";
+            } else {
+                request.Status = "Review";
+            }
+            await _context.SaveChangesAsync();
+
+            return CreatedAtAction("GetRequest", new { id = request.Id }, request);
+        }
+
         // DELETE: api/Requests/5
         [HttpDelete("{id}")]
         public async Task<ActionResult<Request>> DeleteRequest(int id)
@@ -102,11 +136,30 @@ namespace PrsWebApi.Controllers
 
             return request;
         }
+        
+        // TR13 Set Status to Approved
+        [HttpPost("approve")]
+        public async Task<ActionResult<Request>> UpdateRequestToApproved(Request request) {
+                request.Status = "Approved";
+            await _context.SaveChangesAsync();
+            return CreatedAtAction("GetRequest", new { id = request.Id }, request);
+        }
+
+        
+        // TR8 Set Status to Rejected
+        [HttpPost("reject")]
+        public async Task<ActionResult<Request>> UpdateRequestToRejected(Request request) {
+                request.Status = "Rejected";
+            await _context.SaveChangesAsync();
+            return CreatedAtAction("GetRequest", new { id = request.Id }, request);
+        }
 
 
         private bool RequestExists(int id)
         {
             return _context.Requests.Any(e => e.Id == id);
         }
+
+
     }
 }

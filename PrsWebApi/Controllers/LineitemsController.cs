@@ -42,9 +42,15 @@ namespace PrsWebApi.Controllers
             return lineitem;
         }
 
+        // TR4 #1
+        [HttpGet("lines-for-pr/{id}")]
+        public async Task<ActionResult<IEnumerable<Lineitem>>> GetAllByRequest(int id) {
+            return await _context.Lineitems.Where(li => li.RequestId == id).ToListAsync();
+        }
+
+        
+        // TR6 w/ Update
         // PUT: api/Lineitems/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to, for
-        // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPut("{id}")]
         public async Task<IActionResult> PutLineitem(int id, Lineitem lineitem)
         {
@@ -58,6 +64,7 @@ namespace PrsWebApi.Controllers
             try
             {
                 await _context.SaveChangesAsync();
+                await RecalculateTotal(lineitem.RequestId);
             }
             catch (DbUpdateConcurrencyException)
             {
@@ -74,18 +81,19 @@ namespace PrsWebApi.Controllers
             return NoContent();
         }
 
+        // TR5 Recalculate w/ Add
         // POST: api/Lineitems
-        // To protect from overposting attacks, enable the specific properties you want to bind to, for
-        // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPost]
         public async Task<ActionResult<Lineitem>> PostLineitem(Lineitem lineitem)
         {
             _context.Lineitems.Add(lineitem);
             await _context.SaveChangesAsync();
+            await RecalculateTotal(lineitem.RequestId);
 
             return CreatedAtAction("GetLineitem", new { id = lineitem.Id }, lineitem);
         }
 
+        // TR7
         // DELETE: api/Lineitems/5
         [HttpDelete("{id}")]
         public async Task<ActionResult<Lineitem>> DeleteLineitem(int id)
@@ -106,5 +114,20 @@ namespace PrsWebApi.Controllers
         {
             return _context.Lineitems.Any(e => e.Id == id);
         }
+
+        // Recalculate Method
+        private async Task RecalculateTotal(int requestid) {
+            var request = await _context.Requests.FindAsync(requestid);
+            request.Total = (from l in _context.Lineitems
+                             join p in _context.Products on l.ProductId equals p.Id
+                             where l.RequestId == requestid
+                             select new { Total = l.Quantity * p.Price })
+                             .Sum(x => x.Total);
+            var rc = await _context.SaveChangesAsync();
+            if (rc != 1) throw new Exception("Error Updating Total");
+
+        }
+
+
     }
 }
